@@ -1,8 +1,12 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 import motor.motor_asyncio
 import certifi
+from pydantic import BaseModel, Field
+from bson import ObjectId
+
+
 
 load_dotenv()
 
@@ -25,6 +29,12 @@ client = motor.motor_asyncio.AsyncIOMotorClient(
 db = client[DB_NAME]
 venues_collection = db["venues"]
 
+class VenueCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    address: str = Field(..., min_length=1)
+    capacity: int = Field(..., ge=1)
+
+
 @app.get("/")
 async def root():
     return {"status": "ok"}
@@ -38,3 +48,11 @@ async def get_venues():
         v["_id"] = str(v["_id"])
 
     return venues
+
+@app.post("/venues", status_code=201)
+async def createVenues(payload: VenueCreate):
+    doc = payload.model_dump()
+    result = await venues_collection.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+
+    return doc
