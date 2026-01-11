@@ -56,3 +56,19 @@ async def createVenues(payload: VenueCreate):
     doc["_id"] = str(result.inserted_id)
 
     return doc
+
+@app.get("/venues/{venue_id}")
+async def get_venue_by_id(venue_id: str):
+    if not ObjectId.is_valid(venue_id):
+        raise HTTPException(status_code=400, detail="Invalid Venue ID format")
+    
+    oid = ObjectId(venue_id)
+
+    venue = await venues_collection.find_one({"_id": oid})
+
+    if venue is None:
+        raise HTTPException(status_code=404, detail="Venue not Found")
+    
+    venue["_id"] = str(venue["_id"])
+
+    return venue
