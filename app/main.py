@@ -34,6 +34,13 @@ class VenueCreate(BaseModel):
     address: str = Field(..., min_length=1)
     capacity: int = Field(..., ge=1)
 
+class VenueUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    address: str | None = Field(default=None, min_length=1)
+    capacity: int | None = Field(default=None, ge=1)
+
+
+
 
 @app.get("/")
 async def root():
@@ -71,4 +78,29 @@ async def get_venue_by_id(venue_id: str):
     
     venue["_id"] = str(venue["_id"])
 
+    return venue
+
+
+@app.put("/venues/{venue_id}")
+async def update_venue_(venue_id: str, payload: VenueUpdate):
+    if not ObjectId.is_valid(venue_id):
+        raise HTTPException(status_code=400, detail="Invalid venue ID Format")
+    
+    oid = ObjectId(venue_id)
+
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+    
+    result = await venues_collection.update_one(
+        {"_id": oid},
+        {"$set": update_data}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Venue not found")
+    
+    venue = await venues_collection.find_one({"_id": oid})
+    venue["_id"] = str(venue["_id"])
     return venue
