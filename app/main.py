@@ -104,3 +104,18 @@ async def update_venue_(venue_id: str, payload: VenueUpdate):
     venue = await venues_collection.find_one({"_id": oid})
     venue["_id"] = str(venue["_id"])
     return venue
+
+@app.delete("/venues/{venue_id}")
+async def delete_venue(venue_id: str):
+    if not ObjectId.is_valid(venue_id):
+        raise HTTPException(status_code=400, detail="Invalid venue ID Format")
+    
+    oid = ObjectId(venue_id)
+
+    result = await venues_collection.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Venue not found")
+    
+
+    return{"deleted": True, "venue_id": venue_id}
+    
