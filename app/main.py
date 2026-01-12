@@ -5,6 +5,7 @@ import motor.motor_asyncio
 import certifi
 from pydantic import BaseModel, Field
 from bson import ObjectId
+from enum import Enum
 
 
 
@@ -28,6 +29,7 @@ client = motor.motor_asyncio.AsyncIOMotorClient(
 
 db = client[DB_NAME]
 venues_collection = db["venues"]
+bookings_collection = db["bookings"]
 
 class VenueCreate(BaseModel):
     name: str = Field(..., min_length=1)
@@ -38,6 +40,18 @@ class VenueUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1)
     address: str | None = Field(default=None, min_length=1)
     capacity: int | None = Field(default=None, ge=1)
+
+class BookingCreate(BaseModel):
+    event_id: str = Field(..., min_length=1)
+    attendee_id: str = Field(..., min_length=1)
+    ticket_type: str = Field(..., min_length=1)
+    quantity: int = Field(..., ge=1)
+
+class BookingUpdate(BaseModel):
+    event_id: str | None = Field(..., min_length=1)
+    attendee_id: str | None = Field(..., min_length=1)
+    ticket_type: str | None = Field(..., min_length=1)
+    quantity: int | None = Field(..., ge=1)
 
 
 
@@ -119,3 +133,61 @@ async def delete_venue(venue_id: str):
 
     return{"deleted": True, "venue_id": venue_id}
     
+
+@app.get("/bookings")
+async def get_bookings():
+    bookings = await bookings_collection.find().to_list(100)
+
+    for v in bookings:
+        v["_id"] = str(v["_id"])
+
+    return bookings
+
+
+@app.post("/bookings", status_code=201)
+async def createBookings(payload: BookingCreate):
+    doc = payload.model_dump()
+    result = await bookings_collection.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+
+    return doc
+
+
+@app.put("/bookings/{booking_id}")
+async def update_booking_(booking_id: str, payload: BookingUpdate):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(status_code=400, detail="Invalid Booking ID Format")
+    
+    oid = ObjectId(booking_id)
+
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+    
+    result = await bookings_collection.update_one(
+        {"_id": oid},
+        {"$set": update_data}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    booking = await bookings_collection.find_one({"_id": oid})
+    booking["_id"] = str(booking["_id"])
+    return booking
+
+
+@app.delete("/bookings/{booking_id}")
+async def delete_booking(booking_id: str):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(status_code=400, detail="Invalid Booking ID Format")
+    
+    oid = ObjectId(booking_id)
+
+    result = await bookings_collection.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+
+    return{"deleted": True, "booking_id": booking_id}
